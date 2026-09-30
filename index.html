@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admit Hackathon | Motion · Робот DaDuino + K210</title>
+  
+  
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+  
+  <link rel="stylesheet" href="/src/style.css">
+</head>
+<body>
+  
+  <div id="scene-container"></div>
+
+  
+  <header id="admit-header" class="admit-card">
+    <div class="brand-wrapper">
+      <div class="brand-badge">ADMIT</div>
+      <div class="case-info">
+        <strong>Motion.</strong> Камера вместо джойстика
+      </div>
+    </div>
+
+    
+    <nav class="header-nav">
+      <button class="nav-tab active" data-mode="gesture" title="Управление роботом жестами через веб-камеру">
+        🖐️ Управление жестами
+      </button>
+      <button class="nav-tab" data-mode="apriltag" title="Автономное следование K210 за AprilTag ID:6">
+        🎯 Следование AprilTag
+      </button>
+      <button class="nav-tab" data-mode="keyboard" title="Ручное управление WASD">
+        ⌨️ Клавиатура
+      </button>
+    </nav>
+
+    
+    <div class="header-actions">
+      <button class="btn-ghost cam-btn active" data-cam="orbit" title="Свободный 3D обзор">
+        🌐 3D
+      </button>
+      <button class="btn-ghost cam-btn" data-cam="chase" title="Вид от 3-го лица">
+        🏎️ Камера слежения
+      </button>
+      <button id="auto-wander-btn" class="btn-ghost" title="Авто-движение AprilTag по полигону">
+        🌀 Авто-тег
+      </button>
+      <button id="mute-btn" class="btn-ghost">
+        🔊 Звук
+      </button>
+    </div>
+  </header>
+
+  
+  <aside id="left-panel" class="admit-card">
+    
+    <div class="coin-bank-card">
+      <div class="bank-top-row">
+        <span class="coin-bank-amount">🪙 <span id="coin-balance">0</span></span>
+        <span id="robot-rank-badge" class="rank-badge rank-poor">РАНГ: НИЩИЙ</span>
+      </div>
+      <div id="robot-evolution-desc" class="rank-desc">
+        Старый картонный бот со свалки. Собирайте монетки жестами, чтобы прокачать его!
+      </div>
+    </div>
+
+    
+    <div class="section-label">
+      <span>🛒 Мастерская улучшений</span>
+      <button id="reset-progress-btn" class="btn-micro" title="Начать заново с нищего">Сброс ↺</button>
+    </div>
+
+    
+    <div class="upgrades-list">
+      
+      <div class="upgrade-row">
+        <div class="u-info">
+          <div class="u-name">🏎️ Моторы и скорость</div>
+          <div id="u-engine-desc" class="u-desc">Ржавый моторчик (0.35 м/с)</div>
+        </div>
+        <button id="buy-engine-btn" class="u-buy-btn" data-cat="engine">
+          <span class="u-price">30 🪙</span>
+        </button>
+      </div>
+
+      
+      <div class="upgrade-row">
+        <div class="u-info">
+          <div class="u-name">🛡️ Корпус и шасси</div>
+          <div id="u-chassis-desc" class="u-desc">Картон и изолента</div>
+        </div>
+        <button id="buy-chassis-btn" class="u-buy-btn" data-cat="chassis">
+          <span class="u-price">40 🪙</span>
+        </button>
+      </div>
+
+      
+      <div class="upgrade-row">
+        <div class="u-info">
+          <div class="u-name">📷 Сенсор K210</div>
+          <div id="u-camera-desc" class="u-desc">Вебка на палке</div>
+        </div>
+        <button id="buy-camera-btn" class="u-buy-btn" data-cat="camera">
+          <span class="u-price">50 🪙</span>
+        </button>
+      </div>
+
+      
+      <div class="upgrade-row">
+        <div class="u-info">
+          <div class="u-name">🧲 Магнит монет</div>
+          <div id="u-magnet-desc" class="u-desc">Без магнита (в упор)</div>
+        </div>
+        <button id="buy-magnet-btn" class="u-buy-btn" data-cat="magnet">
+          <span class="u-price">35 🪙</span>
+        </button>
+      </div>
+    </div>
+
+    
+    <div class="section-label">
+      <span>Сценарий зачета (AprilTag)</span>
+      <span id="mission-status-tag" class="mission-badge">Квалификация</span>
+    </div>
+
+    
+    <div class="mission-status-card">
+      <div class="status-header-row">
+        <span style="font-size: 11px; color: var(--text-muted);">Время заезда:</span>
+        <span id="mission-score-counter" style="font-size: 12px; font-weight: 700; color: #60a5fa;">0 pts</span>
+      </div>
+      <div id="mission-timer-display" class="mission-timer">00:00.0</div>
+
+      
+      <div style="display:flex; flex-direction:column; gap:4px;">
+        <div style="display:flex; justify-content:space-between; font-size:10px; color:var(--text-subtle);">
+          <span>Фиксация AprilTag ID:6</span>
+          <span id="lock-percent-text">0%</span>
+        </div>
+        <div style="height:6px; background:rgba(255,255,255,0.06); border-radius:3px; overflow:hidden;">
+          <div id="lock-progress-bar" style="width:0%; height:100%; background:#10b981; transition:width 0.1s linear;"></div>
+        </div>
+      </div>
+
+      <button id="mission-start-btn" class="btn-primary-action">
+        ▶ Начать заезд на время
+      </button>
+    </div>
+
+    
+    <div class="spec-grid">
+      <div class="spec-cell">
+        <div class="spec-cell-label">Скорость</div>
+        <div id="robot-speed-gauge" class="spec-cell-val">0.00 m/s</div>
+      </div>
+      <div class="spec-cell">
+        <div class="spec-cell-label">Дистанция до тега</div>
+        <div id="robot-dist-gauge" class="spec-cell-val">--</div>
+      </div>
+      <div class="spec-cell">
+        <div class="spec-cell-label">Угол (Yaw)</div>
+        <div id="robot-yaw-gauge" class="spec-cell-val">--</div>
+      </div>
+      <div class="spec-cell">
+        <div class="spec-cell-label">Статус K210</div>
+        <div id="k210-status-badge" class="spec-cell-val" style="color:#f59e0b;">ПОИСК</div>
+      </div>
+    </div>
+
+    
+    <div style="display:flex; gap:6px;">
+      <button id="reset-tag-btn" class="btn-ghost" style="flex:1; justify-content:center;">
+        🎯 Сброс тега
+      </button>
+      <button id="reset-robot-btn" class="btn-ghost" style="flex:1; justify-content:center;">
+        🔄 Сброс робота
+      </button>
+    </div>
+  </aside>
+
+  
+  <aside id="right-stack">
+    
+    <div class="admit-card k210-window">
+      <div class="k210-header-bar">
+        <span style="font-weight: 700; color: #fff; display: flex; align-items: center; gap: 6px;">
+          <span>📷</span> Сенсор Kendryte K210 (OV2640)
+        </span>
+        <span style="color:#10b981; font-family:monospace; font-weight: bold;">QVGA · FOV 65°</span>
+      </div>
+      <div class="k210-viewport">
+        <canvas id="k210-canvas" width="310" height="200"></canvas>
+      </div>
+    </div>
+  </aside>
+
+  
+  <div id="floating-gesture-window" class="admit-card draggable-window">
+    
+    <div id="gesture-window-handle" class="window-drag-header">
+      <span class="drag-title">
+        <span class="drag-grip-icon">⠿</span> Веб-камера и туториал жестов
+      </span>
+      <span class="drag-hint">✛ Потяните</span>
+    </div>
+
+    
+    <div class="gesture-quick-tutorial">
+      <div class="tut-chip" title="Сожмите пальцы в кулак для движения вперед"><span class="tut-icon">✊</span> <span class="tut-text">Кулак: Газ</span></div>
+      <div class="tut-chip" title="Раскройте ладонь пальцами вверх для остановки"><span class="tut-icon">✋</span> <span class="tut-text">Ладонь: Стоп</span></div>
+      <div class="tut-chip" title="Опустите пальцы вниз или покажите предплечье"><span class="tut-icon">💪</span> <span class="tut-text">Предплечье: Назад</span></div>
+      <div class="tut-chip" title="Смещайте руку вправо или влево для поворота"><span class="tut-icon">↔️</span> <span class="tut-text">Рука: Руль ⮜ ⮞</span></div>
+    </div>
+
+    
+    <div id="error-coach-card" class="coach-card">
+      <div class="coach-header">
+        <span style="color:#9ca3af;">Контроль техники движения</span>
+        <span id="coach-tag" class="coach-tag">РЕЖИМ «ОШИБКА»</span>
+      </div>
+      <div id="coach-message" class="coach-message">
+        Подключите веб-камеру для калибровки и анализа движений
+      </div>
+    </div>
+
+    
+    <div class="webcam-module-body">
+      <div class="camera-preview-box">
+        <video id="mp-video" playsinline style="display:none;"></video>
+        <canvas id="mp-canvas" width="310" height="175"></canvas>
+      </div>
+
+      
+      <div class="gesture-active-strip">
+        <div class="gesture-identity">
+          <span id="current-gesture-icon" class="gesture-icon-spot">✋</span>
+          <div>
+            <div id="current-gesture-name" class="gesture-text-title">ОЖИДАНИЕ ЖЕСТА</div>
+          </div>
+        </div>
+        <div id="steering-zone-badge" class="gesture-turn-badge">РУЛЬ: ЦЕНТР</div>
+      </div>
+
+      
+      <button id="mp-toggle-btn" class="btn-cam-starter">
+        📷 Включить веб-камеру
+      </button>
+
+      
+      <div class="virtual-bar">
+        <button class="v-btn virtual-gesture-btn" data-gesture="FIST" data-x="0.5" title="Кулак: Вперед">
+          <span>✊</span>Вперед
+        </button>
+        <button class="v-btn virtual-gesture-btn" data-gesture="OPEN_PALM" data-x="0.5" title="Ладонь: Стоп">
+          <span>✋</span>Стоп
+        </button>
+        <button class="v-btn virtual-gesture-btn" data-gesture="FOREARM_BACKWARD" data-x="0.5" title="Предплечье: Назад">
+          <span>💪</span>Назад
+        </button>
+        <button class="v-btn virtual-gesture-btn" data-gesture="NEUTRAL" data-x="0.25" title="Рука слева: Турн влево">
+          <span>👈</span>Влево
+        </button>
+        <button class="v-btn virtual-gesture-btn" data-gesture="NEUTRAL" data-x="0.75" title="Рука справа: Турн вправо">
+          <span>👉</span>Вправо
+        </button>
+        <button class="v-btn virtual-gesture-btn" data-gesture="FIST" data-x="0.25" title="Кулак слева: Газ+Влево">
+          <span>✊👈</span>Газ+Л
+        </button>
+        <button class="v-btn virtual-gesture-btn" data-gesture="FIST" data-x="0.75" title="Кулак справа: Газ+Вправо">
+          <span>✊👉</span>Газ+П
+        </button>
+        <button class="v-btn virtual-gesture-btn" data-gesture="FOREARM_BACKWARD" data-x="0.75" title="Назад+Вправо">
+          <span>💪👉</span>Зад+П
+        </button>
+      </div>
+    </div>
+  </div>
+
+  
+  <footer id="bottom-strip" class="admit-card">
+    <div class="telemetry-inline">
+      <span><span class="dot-indicator active"></span> DaDuino Leonardo</span>
+      <span>Kendryte K210 Vision Module</span>
+      <span>MediaPipe 21 Hand Landmarks</span>
+    </div>
+    <div id="system-status-msg" style="font-family: monospace; color: #10b981;">
+      СИСТЕМА ГОТОВА К ЗАЕЗДУ
+    </div>
+  </footer>
+
+  
+  <div id="finish-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="modal-trophy">🏆</div>
+        <div class="modal-title">Миссия выполнена!</div>
+        <div class="modal-subtitle">AprilTag ID:6 успешно захвачен сенсором K210</div>
+      </div>
+
+      <div class="modal-results-table">
+        <div class="result-row">
+          <span>Время прохождения:</span>
+          <strong id="final-time-val">00:18.4</strong>
+        </div>
+        <div class="result-row">
+          <span>Точность жестов:</span>
+          <strong id="final-accuracy-val">95.2%</strong>
+        </div>
+        <div class="result-row">
+          <span>Ошибок техники (Режим «Ошибка»):</span>
+          <strong id="final-errors-val">0</strong>
+        </div>
+        <div class="result-row" style="border-top: 1px solid rgba(255,255,255,0.08); padding-top: 6px; margin-top: 4px;">
+          <span style="font-weight: 700; color: #fff;">Итоговый счет:</span>
+          <strong id="final-score-val" style="color: #60a5fa; font-size: 16px;">1450 PTS</strong>
+        </div>
+      </div>
+
+      <div class="modal-btn-row">
+        <button id="modal-close-btn" class="modal-btn modal-btn-secondary">Закрыть</button>
+        <button id="modal-restart-btn" class="modal-btn modal-btn-primary">Заехать снова</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
